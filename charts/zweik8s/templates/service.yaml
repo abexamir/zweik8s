@@ -1,0 +1,35 @@
+{{- $s := .Values.service }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zweik8s.fullname" . }}
+  labels:
+    {{- include "zweik8s.labels" . | nindent 4 }}
+  {{- with $s.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $s.type }}
+  {{- if eq $s.type "LoadBalancer" }}
+  {{- with $s.loadBalancerClass }}
+  loadBalancerClass: {{ . }}
+  {{- end }}
+  {{- with $s.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  {{- if ne $s.type "ClusterIP" }}
+  externalTrafficPolicy: {{ $s.externalTrafficPolicy }}
+  {{- end }}
+  selector:
+    {{- include "zweik8s.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: wireguard
+      protocol: UDP
+      port: {{ $s.port | default .Values.tunnel.listenPort }}
+      targetPort: wireguard
+      {{- if $s.nodePort }}
+      nodePort: {{ $s.nodePort }}
+      {{- end }}
