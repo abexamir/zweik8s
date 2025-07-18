@@ -10,7 +10,7 @@ RUN touch src/main.rs && cargo build --release --locked && ./target/release/zwei
 
 FROM ${REGISTRY}alpine:3.24.4
 RUN apk add --no-cache wireguard-tools-wg iproute2-minimal nftables \
- && wg --version && ip -V && nft --version
+ && command -v wg ip nft >/dev/null
 COPY --from=build /src/target/release/zweik8s /usr/local/bin/zweik8s
 LABEL org.opencontainers.image.source="https://github.com/abexamir/zweik8s" \
       org.opencontainers.image.description="Connect Services of two Kubernetes clusters over one WireGuard tunnel" \
