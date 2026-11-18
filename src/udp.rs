@@ -105,7 +105,8 @@ async fn session(
     )
     .await
     .map_err(|_| anyhow!("resolving {} timed out", spec.target_host))??
-    .next()
+    // UDP cannot tell a wrong address from a silent one: prefer IPv4, like Kubernetes Services.
+    .min_by_key(|a| a.is_ipv6())
     .ok_or_else(|| anyhow!("{} has no addresses", spec.target_host))?;
     let upstream = UdpSocket::bind(if target.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" }).await?;
     upstream.connect(target).await?;

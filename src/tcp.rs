@@ -143,11 +143,13 @@ async fn session(client: TcpStream, spec: &Listener, config: &Config, stats: &Li
 async fn connect(spec: &Listener, config: &Config) -> Result<TcpStream> {
     let deadline = Instant::now() + Duration::from_secs(config.tuning.connect_timeout_seconds);
     let target = (spec.target_host.as_str(), spec.target_port);
-    let addrs: Vec<SocketAddr> = tokio::time::timeout_at(deadline.into(), tokio::net::lookup_host(target))
-        .await
-        .map_err(|_| anyhow!("resolving {} timed out", spec.target_host))?
-        .with_context(|| format!("resolving {}", spec.target_host))?
-        .collect();
+    let mut addrs: Vec<SocketAddr> =
+        tokio::time::timeout_at(deadline.into(), tokio::net::lookup_host(target))
+            .await
+            .map_err(|_| anyhow!("resolving {} timed out", spec.target_host))?
+            .with_context(|| format!("resolving {}", spec.target_host))?
+            .collect();
+    addrs.sort_by_key(|a| a.is_ipv6()); // IPv4 first; stable, so resolver order is kept within a family
     let mut last = anyhow!("{} has no addresses", spec.target_host);
     for addr in addrs {
         let socket = if addr.is_ipv4() {
