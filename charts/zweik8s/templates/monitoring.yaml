@@ -1,0 +1,37 @@
+{{- $m := .Values.metrics }}
+{{- if and $m.enabled $m.podMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "zweik8s.fullname" . }}
+  labels:
+    {{- include "zweik8s.labels" . | nindent 4 }}
+    {{- with $m.podMonitor.labels }}{{ toYaml . | nindent 4 }}{{ end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "zweik8s.selectorLabels" . | nindent 6 }}
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ $m.podMonitor.interval }}
+{{- end }}
+{{- if and $m.enabled $m.vmPodScrape.enabled }}
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: {{ include "zweik8s.fullname" . }}
+  labels:
+    {{- include "zweik8s.labels" . | nindent 4 }}
+    {{- with $m.vmPodScrape.labels }}{{ toYaml . | nindent 4 }}{{ end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "zweik8s.selectorLabels" . | nindent 6 }}
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ $m.vmPodScrape.interval }}
+{{- end }}

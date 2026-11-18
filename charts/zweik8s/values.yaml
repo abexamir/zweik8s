@@ -1,0 +1,142 @@
+# zweik8s: one release per cluster. Both releases name each other as peers.
+# Install into a dedicated namespace labelled pod-security.kubernetes.io/enforce=privileged
+# (the gateway needs NET_ADMIN to create its WireGuard interface).
+
+image:
+  repository: ghcr.io/abexamir/zweik8s
+  # Defaults to the chart's appVersion.
+  tag: ""
+  # sha256:... ; when set it wins over the tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# This gateway's end of the tunnel.
+tunnel:
+  # Required. An address used only inside the tunnel, e.g. 169.254.99.1. Each side uses a
+  # different one; nothing else in either cluster may use it.
+  address: ""
+  # UDP port inside the pod. Kernel WireGuard uses the next port, privately.
+  listenPort: 51822
+  mtu: 1380
+  interface: zweik8s
+  controlPort: 19999
+
+peer:
+  # Required. The other side's tunnel.address.
+  address: ""
+  # Required. The other side's public UDP endpoint, host:port (its Service's external
+  # address and port). The host may be a DNS name.
+  endpoint: ""
+
+# The WireGuard keys: a Secret with keys `private-key` (this side) and `peer-public-key`.
+keys:
+  # Use an existing Secret.
+  existingSecret: ""
+  # Or let External Secrets Operator create it.
+  externalSecret:
+    enabled: false
+    apiVersion: external-secrets.io/v1
+    refreshInterval: 1h
+    secretStoreRef:
+      name: ""
+      kind: SecretStore
+    remoteKey: ""
+    privateKeyProperty: PRIVATE_KEY
+    peerPublicKeyProperty: PEER_PUBKEY
+
+# Publishes the encrypted UDP port to the other cluster.
+service:
+  type: LoadBalancer
+  # Defaults to tunnel.listenPort.
+  port: null
+  # Pin it so the peer's endpoint never changes. Required for type NodePort.
+  nodePort: null
+  loadBalancerClass: ""
+  annotations: {}
+  externalTrafficPolicy: Local
+  loadBalancerSourceRanges: []
+
+clusterDomain: cluster.local
+
+# Local Services the peer may reach. The peer imports them with the same tunnelPort.
+exports: []
+# - name: vault
+#   # Either a host name or IP...
+#   host: vault-active.vault.svc.cluster.local
+#   # ...or a Service in this cluster: service + namespace.
+#   # service: vault-active
+#   # namespace: vault
+#   ports:
+#     - port: 8200        # the target's port
+#       tunnelPort: 20100 # agreed with the peer, unique per protocol across both sides
+#       protocol: TCP     # TCP or UDP
+
+# The peer's exports, published here as Services in the release namespace.
+imports: []
+# - name: vault
+#   # Service name; defaults to name.
+#   serviceName: ""
+#   ports:
+#     - port: 8200        # port callers use
+#       tunnelPort: 20100 # the peer's export
+#       protocol: TCP
+#   # Only these pods may connect (NetworkPolicy). A namespace of "*" means any namespace;
+#   # matchLabels must not be empty.
+#   callers:
+#     - namespace: "*"
+#       matchLabels:
+#         zweik8s.io/access: "true"
+
+# Runtime tuning; see docs/configuration.md. Unset keys keep the runtime defaults.
+tuning: {}
+#  maxSessions: 1024
+#  tcpCongestion: bbr
+#  socketBufferBytes: 4194304
+#  peerTimeoutSeconds: 45
+#  drainSeconds: 10
+#  workers: 0
+#  splice: true
+
+metrics:
+  # Serve /metrics on the pod IP (otherwise only on 127.0.0.1 for probes).
+  enabled: false
+  port: 9090
+  # NetworkPolicy peers allowed to scrape, e.g.
+  # - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+  allowFrom: []
+  podMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+  vmPodScrape:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+networkPolicy:
+  # Admit only the encrypted port, the declared callers and metrics scrapers.
+  enabled: true
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+# Preferred node names, e.g. a node with a stable public route.
+preferredNodes: []
+# Replaces the default (any node that is not a control plane).
+affinity: {}
+nodeSelector: {}
+tolerations: []
+priorityClassName: ""
+podAnnotations: {}
+podLabels: {}

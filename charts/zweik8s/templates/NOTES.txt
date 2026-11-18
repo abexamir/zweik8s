@@ -1,0 +1,17 @@
+zweik8s {{ .Chart.AppVersion }}: {{ .Values.tunnel.address }} <-> {{ .Values.peer.address }} ({{ .Values.peer.endpoint }})
+
+Publish this side's encrypted endpoint to the peer as its peer.endpoint:
+  kubectl -n {{ .Release.Namespace }} get service {{ include "zweik8s.fullname" . }}
+
+Check the tunnel:
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "zweik8s.fullname" . }} -- zweik8s status
+{{- with .Values.imports }}
+
+Imported Services (callers need the labels in imports[].callers):
+{{- range . }}
+  {{ .serviceName | default .name }}.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}
+{{- end }}
+{{- end }}
+
+The namespace must allow privileged pods (pod-security.kubernetes.io/enforce=privileged):
+the gateway needs NET_ADMIN for its WireGuard interface.

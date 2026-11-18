@@ -1,0 +1,36 @@
+# Site B imports site A's Postgres and exports a Redis and a DNS-style UDP service.
+tunnel:
+  address: 169.254.100.2
+peer:
+  address: 169.254.100.1
+  endpoint: 203.0.113.10:31821    # site A's Service external address and nodePort
+keys:
+  existingSecret: zweik8s-keys    # private-key: B's key, peer-public-key: A's public key
+service:
+  type: LoadBalancer
+  nodePort: 31822
+exports:
+  - name: redis
+    host: redis-master.cache.svc.cluster.local
+    ports:
+      - {port: 6379, tunnelPort: 20002}
+imports:
+  - name: postgres
+    serviceName: postgres-site-a
+    ports:
+      - {port: 5432, tunnelPort: 20001}
+    callers:
+      - namespace: billing
+        matchLabels:
+          app: invoicer
+      - namespace: "*"
+        matchLabels:
+          zweik8s.io/access: "true"
+metrics:
+  enabled: true
+  allowFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+  podMonitor:
+    enabled: true

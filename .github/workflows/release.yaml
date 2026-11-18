@@ -1,0 +1,83 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/zweik8s
+  CHARTS: oci://ghcr.io/${{ github.repository_owner }}/charts
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Versions must match the tag
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          grep -q "^version = \"$v\"" Cargo.toml
+          grep -q "^version: $v$" charts/zweik8s/Chart.yaml
+          grep -q "^appVersion: \"$v\"$" charts/zweik8s/Chart.yaml
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+
+      - uses: azure/setup-helm@v4
+      - name: Package and push the chart
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm package charts/zweik8s
+          helm push "zweik8s-$VERSION.tgz" "$CHARTS"
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          {
+            echo "## Install"
+            echo
+            echo '```sh'
+            echo "helm install zweik8s $CHARTS/zweik8s --version $VERSION -n zweik8s -f values.yaml"
+            echo '```'
+            echo
+            echo "Image: \`$IMAGE:$VERSION\` (\`$DIGEST\`)"
+            echo
+            sed -n "/^## $VERSION/,/^## /p" CHANGELOG.md | sed '1d;$d'
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" "zweik8s-$VERSION.tgz" --title "zweik8s $VERSION" --notes-file notes.md

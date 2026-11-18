@@ -1,0 +1,25 @@
+# Site A exports a Postgres Service and imports site B's Redis.
+tunnel:
+  address: 169.254.100.1
+peer:
+  address: 169.254.100.2
+  endpoint: 198.51.100.20:31822   # site B's Service external address and nodePort
+keys:
+  existingSecret: zweik8s-keys    # private-key: A's key, peer-public-key: B's public key
+service:
+  type: LoadBalancer
+  nodePort: 31821
+exports:
+  - name: postgres
+    service: postgres
+    namespace: databases
+    ports:
+      - {port: 5432, tunnelPort: 20001}
+imports:
+  - name: redis
+    ports:
+      - {port: 6379, tunnelPort: 20002}
+    callers:
+      - namespace: "*"
+        matchLabels:
+          zweik8s.io/access: "true"

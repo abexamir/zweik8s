@@ -1,0 +1,21 @@
+{{- range $i := .Values.imports }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $i.serviceName | default $i.name }}
+  labels:
+    {{- include "zweik8s.labels" $ | nindent 4 }}
+    zweik8s.io/import: {{ $i.name }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "zweik8s.selectorLabels" $ | nindent 4 }}
+  ports:
+    {{- range $p := $i.ports }}
+    - name: {{ printf "p%v-%s" $p.port (($p.protocol | default "TCP") | lower) }}
+      port: {{ $p.port }}
+      protocol: {{ $p.protocol | default "TCP" | upper }}
+      targetPort: {{ $p.tunnelPort }}
+    {{- end }}
+{{- end }}
