@@ -86,8 +86,8 @@ start() { # side
     >>"$WORK/$side.log" 2>&1 &
   echo $! > "$WORK/$side.pid"
 }
-wait_up() { # ns
-  for _ in $(seq 1 50); do
+wait_up() { # ns; WireGuard retries a lost first handshake after 5 s, so allow a few
+  for _ in $(seq 1 100); do
     ip netns exec "$1" "$BIN" status 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d["ready"] and d["peerReplyAgeSeconds"] is not None and d["peerReplyAgeSeconds"] < 3 else 1)' && return 0
     sleep 0.2
   done
@@ -96,9 +96,11 @@ wait_up() { # ns
 
 start $A a
 start $B b
+T0=$(date +%s.%N)
 echo "tunnel"
 check "site a ready and hears the peer" wait_up $A
 check "site b ready and hears the peer" wait_up $B
+echo "       (tunnel up $(python3 -c "print(round($(date +%s.%N) - $T0, 1))") s after start)"
 check "WireGuard handshake completed" bash -c "in_a() { ip netns exec $A \"\$@\"; }; [ \$(ip netns exec $A wg show zweik8s latest-handshakes | awk '{print \$2}') -gt 0 ]"
 
 cat > "$WORK/tcp_check.py" <<'EOF'
