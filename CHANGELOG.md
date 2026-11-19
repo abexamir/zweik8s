@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Image builds for arm64 again: the Dockerfile checks that `wg`, `ip` and `nft` exist instead of
+  running them, which failed under emulation. 0.1.0 was never published.
+
 ## 0.1.0
 
 First release.
