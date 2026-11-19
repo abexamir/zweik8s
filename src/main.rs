@@ -29,7 +29,7 @@ zweik8s: connect Services of two Kubernetes clusters over one WireGuard tunnel
 Usage:
   zweik8s [run] [--config PATH]     run the gateway (default config /config/runtime.json)
   zweik8s check PATH                validate a runtime config
-  zweik8s probe PATH [--addr ADDR]  query the local health server, e.g. /readyz
+  zweik8s probe PATH [--addr ADDR]  query the local health server: /readyz, /livez, /metrics
   zweik8s status [--addr ADDR]      print the gateway status as JSON
   zweik8s version
 ";
@@ -56,7 +56,15 @@ fn main() {
             Some(p) => Config::load(p.as_ref()).map(|c| println!("ok: {} listeners", c.listeners.len())),
             None => Err(anyhow::anyhow!("check needs a path")),
         },
-        Some("probe") => health::probe(addr, args.get(1).map_or("/readyz", String::as_str)).map(|_| ()),
+        Some("probe") => {
+            let path = args.get(1).map_or("/readyz", String::as_str);
+            // Probes stay quiet; anything else (e.g. /metrics) prints the body.
+            health::probe(addr, path).map(|b| {
+                if !matches!(path, "/readyz" | "/livez") {
+                    print!("{b}")
+                }
+            })
+        }
         Some("status") => health::probe(addr, "/status").map(|b| print!("{b}")),
         Some("version") | Some("--version") => {
             println!("zweik8s {}", env!("CARGO_PKG_VERSION"));

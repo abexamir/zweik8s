@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `zweik8s probe /metrics` (and any path other than `/readyz` and `/livez`) prints the response.
+
 ## 0.1.1
 
 - Image builds for arm64 again: the Dockerfile checks that `wg`, `ip` and `nft` exist instead of
