@@ -39,7 +39,8 @@ gateway opens a fresh connection to the real Service, resolving its DNS name eve
   source port and re-handshakes, so stale NAT mappings heal by themselves.
 - **Fast.** A multi-threaded Rust data path: splice(2) for TCP (payload never enters user space),
   recvmmsg/sendmmsg batches for the encrypted UDP, BBR on the tunnel leg. About 1.5 Gbit/s on
-  two cores, eight times the Python prototype it replaced (see [benchmarks](docs/benchmarks.md)).
+  two cores; between two real data centers it beats a direct LoadBalancer path on single
+  streams (see [benchmarks](docs/benchmarks.md)).
 - **Observable.** `/metrics` for Prometheus, `zweik8s status` for humans, JSON logs.
 
 ## Quick start

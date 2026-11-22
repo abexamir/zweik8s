@@ -21,10 +21,27 @@ per gateway, the limit is CPU for WireGuard's own encryption plus the bridge.
 
 ## Between two data centers
 
-Two production clusters about 5 ms apart, the public internet in between, single-stream HTTPS
-between them (no tunnel) measured at 150–320 Mbit/s. The Python prototype delivered 75–100
-Mbit/s through the tunnel and used a full core on the gateway. zweik8s numbers between the same
-clusters: see the release notes of 0.1.0.
+Two production clusters about 5 ms apart, the public internet in between. iperf3 from a pod in
+cluster B to a pod in cluster A, 12–15 s per run, three rounds interleaved with the same server
+exposed directly through a LoadBalancer (no tunnel, CUBIC). Gateways: 0.1.1, cluster A on a
+14-core node, cluster B on an 8-core node. Mbit/s, one value per round:
+
+| | Direct (LoadBalancer) | zweik8s |
+|---|---|---|
+| B→A, 1 stream | 241, 316, 306 | **559, 574, 567** |
+| A→B, 1 stream | 482, 505, 403 | 440, 459, 471 |
+| B→A, 4 streams | 549, 484 | **609, 639, 624** |
+| A→B, 4 streams | 496, 1175 | 457, 468 |
+
+- Single streams over this lossy path do better through the tunnel: BBR on the tunnel legs
+  recovers from loss that halves CUBIC on the direct path (direct runs retransmitted 10–100×
+  more).
+- All tunnel traffic is one UDP flow. In the A→B direction it held at about 450–470 Mbit/s
+  while parallel direct flows sometimes reached 1.2 Gbit/s, which suggests a per-flow limit on
+  that path rather than in the gateways (both stayed below one busy core).
+- On a 2-CPU node the gateway in cluster B capped both directions near 500 Mbit/s; give it a
+  node with spare cores.
+- The Python prototype carried 75–100 Mbit/s between the same clusters.
 
 ## Reproduce
 
